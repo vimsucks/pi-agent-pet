@@ -1,12 +1,14 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { loadConfig } from "../src/config.js";
+import { loadConfig, shouldReportSession } from "../src/config.js";
 import { AgentPetReporter } from "../src/reporter.js";
 import { sanitizeProject, sanitizeSessionName } from "../src/sanitize.js";
 import { AgentPetTransport, type AgentPetEvent, type DeliveryResult } from "../src/transport.js";
 
 export interface AgentPetExtensionOptions {
   transport?: AgentPetTransport;
+  transportFactory?: (config: ReturnType<typeof loadConfig>) => AgentPetTransport;
   diagnosticDelayMs?: number;
+  environment?: NodeJS.ProcessEnv;
 }
 
 function projectLabel(cwd: string, sessionName: unknown): string | undefined {
@@ -53,7 +55,11 @@ function delay(milliseconds: number): Promise<void> {
 }
 
 export function installAgentPetExtension(pi: ExtensionAPI, options: AgentPetExtensionOptions = {}): void {
-  const transport = options.transport || new AgentPetTransport(loadConfig());
+  const environment = options.environment ?? process.env;
+  if (!shouldReportSession(environment)) return;
+
+  const createTransport = options.transportFactory || ((config) => new AgentPetTransport(config));
+  const transport = options.transport || createTransport(loadConfig(environment));
   const requestedDiagnosticDelayMs = options.diagnosticDelayMs;
   let diagnosticDelayMs = 400;
   if (typeof requestedDiagnosticDelayMs === "number"

@@ -90,6 +90,9 @@ All configuration is optional and local to the Pi process.
 | `AGENTPET_QUEUE_DIR` | `~/.agentpet/queue` | Offline JSONL queue directory |
 | `AGENTPET_TIMEOUT_MS` | `350` | Per-event socket timeout in milliseconds |
 | `AGENTPET_QUEUE_MAX_ENTRIES` | `100` | Maximum queued event files |
+| `PI_AGENTPET_INCLUDE_SUBAGENTS` | disabled | Set to `1`, `true`, `yes`, or `on` to report child subagent sessions |
+
+Child sessions launched by `pi-subagents` set `PI_SUBAGENT_CHILD=1`. The extension detects that stable marker and, by default, does not register event hooks, connect to AgentPet, or write offline events in those processes. Parent Pi sessions continue to report normally.
 
 ## Development
 

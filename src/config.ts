@@ -17,6 +17,14 @@ function positiveInteger(value: string | undefined, fallback: number): number {
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function enabled(value: string | undefined): boolean {
+  return value !== undefined && ["1", "true", "yes", "on"].includes(value.trim().toLowerCase());
+}
+
+export function shouldReportSession(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.PI_SUBAGENT_CHILD !== "1" || enabled(env.PI_AGENTPET_INCLUDE_SUBAGENTS);
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AgentPetConfig {
   const root = env.HOME || homedir();
   return {

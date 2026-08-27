@@ -56,7 +56,7 @@ test("extension uses Pi 0.84.3 fields and awaits idle delivery at shutdown", asy
 
   const pi = new FakePi();
   const transport = new AgentPetTransport({ socketPath, queueDir: join(directory, "queue"), timeoutMs: 100, queueMaxEntries: 10 });
-  installAgentPetExtension(pi as unknown as ExtensionAPI, { transport, diagnosticDelayMs: 0 });
+  installAgentPetExtension(pi as unknown as ExtensionAPI, { transport, diagnosticDelayMs: 0, environment: {} });
   pi.runtimeReady = true;
   const context = { cwd: "/work/demo", getContextUsage: () => ({ tokens: 99 }) };
   await pi.handlers.get("session_start")!({ type: "session_start", reason: "startup" }, context);
@@ -110,7 +110,7 @@ test("status probes the socket and test sends the complete diagnostic sequence",
 
   const pi = new FakePi();
   const transport = new AgentPetTransport({ socketPath, queueDir: join(directory, "queue"), timeoutMs: 100, queueMaxEntries: 10 });
-  installAgentPetExtension(pi as unknown as ExtensionAPI, { transport, diagnosticDelayMs: 0 });
+  installAgentPetExtension(pi as unknown as ExtensionAPI, { transport, diagnosticDelayMs: 0, environment: {} });
   const notices: string[] = [];
   const commandContext = { cwd: "/work/demo", ui: { notify: (message: string) => notices.push(message) } };
   await pi.command!.handler("status", commandContext);
@@ -119,4 +119,34 @@ test("status probes the socket and test sends the complete diagnostic sequence",
   await diagnostic;
   assert.deepEqual(events.map((event) => event.eventName), ["registered", "working", "waiting", "done", "idle"]);
   assert.equal(notices.at(-1), "AgentPet diagnostic delivery: socket, socket, socket, socket, socket.");
+});
+
+test("subagent sessions are hidden by default and can be explicitly included", () => {
+  const disabledPi = new FakePi();
+  let transportsCreated = 0;
+  installAgentPetExtension(disabledPi as unknown as ExtensionAPI, {
+    environment: { PI_SUBAGENT_CHILD: "1" },
+    transportFactory: () => {
+      transportsCreated += 1;
+      throw new Error("disabled subagent created a transport");
+    },
+  });
+  assert.equal(transportsCreated, 0);
+  assert.equal(disabledPi.handlers.size, 0);
+  assert.equal(disabledPi.command, undefined);
+
+  for (const value of ["1", "true", "YES", "on"]) {
+    const enabledPi = new FakePi();
+    installAgentPetExtension(enabledPi as unknown as ExtensionAPI, {
+      environment: { PI_SUBAGENT_CHILD: "1", PI_AGENTPET_INCLUDE_SUBAGENTS: value },
+    });
+    assert.equal(enabledPi.handlers.has("session_start"), true, value);
+    assert.equal(enabledPi.command?.name, "agent-pet", value);
+  }
+
+  const parentPi = new FakePi();
+  installAgentPetExtension(parentPi as unknown as ExtensionAPI, {
+    environment: { PI_SUBAGENT_PARENT_SESSION: "parent-session-id" },
+  });
+  assert.equal(parentPi.handlers.has("session_start"), true);
 });
