@@ -98,3 +98,5 @@ npm run typecheck
 ```
 
 The package has no runtime third-party dependencies. Tests use the Node test runner through `tsx` and cover sanitization leaks, state aggregation, socket JSONL delivery, offline queue permissions/capacity, and extension registration.
+
+The package declares Pi as a peer because Pi provides its extension API at runtime. The repository-level `.npmrc` prevents npm from downloading a second private copy of Pi when this Git package is installed.
