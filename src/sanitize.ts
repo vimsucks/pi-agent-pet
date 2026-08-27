@@ -2,14 +2,26 @@ import { basename } from "node:path";
 
 const SAFE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
 const SAFE_MODEL = /^[A-Za-z0-9][A-Za-z0-9._-]{0,59}(?:\/[A-Za-z0-9][A-Za-z0-9._-]{0,59})?$/;
+const SAFE_TOOL_NAME = /^[A-Za-z][A-Za-z0-9._:-]{0,99}$/;
+const SAFE_ACTION = /^[A-Za-z][A-Za-z0-9._:-]{0,39}$/;
 const PRIVATE_MARKER = /(?:api[-_]?key|auth|credential|password|secret|token)/i;
-const SECRET_VALUE = /(?:\bghp_[A-Za-z0-9]{20,}\b|\bgithub_pat_[A-Za-z0-9_]{20,}\b|\bglpat-[A-Za-z0-9_-]{20,}\b|\bhf_[A-Za-z0-9]{20,}\b|\bnpm_[A-Za-z0-9]{20,}\b|\bxox[a-zA-Z]-[A-Za-z0-9-]{10,}\b|\bsk-[A-Za-z0-9_-]{8,}\b|\bAIza[A-Za-z0-9_-]{20,}\b|\bAKIA[A-Z0-9]{16}\b|\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b)/i;
+const SECRET_VALUE = /(?:ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|glpat-[A-Za-z0-9_-]{20,}|hf_[A-Za-z0-9]{20,}|npm_[A-Za-z0-9]{20,}|xox[a-zA-Z]-[A-Za-z0-9-]{10,}|sk-[A-Za-z0-9_-]{8,}|AIza[A-Za-z0-9_-]{20,}|AKIA[A-Z0-9]{16}|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,})/i;
 const URL_LIKE = /(?:https?:\/\/|https?:\/(?!\/)|\/\/)/i;
-const KNOWN_TOOLS = new Set([
-  "bash", "edit", "find", "grep", "interview", "ls", "read", "search", "terminal",
-  "ask_user_question", "question", "write",
-]);
 const INTERACTIVE_TOOLS = new Set(["ask_user_question", "question", "interview"]);
+const FILE_TOOLS = new Set(["apply_patch", "edit", "find", "grep", "insert", "ls", "read", "replace", "write"]);
+const ACTIONS_BY_TOOL: Readonly<Record<string, ReadonlySet<string>>> = {
+  intercom: new Set(["ask", "list", "pending", "reply", "send", "status"]),
+  runtime_status: new Set(["clear", "list", "refresh", "remove", "upsert"]),
+  subagent: new Set([
+    "children.list", "create", "debug.run", "delete", "disable", "doctor", "eject", "enable", "get", "guide",
+    "interrupt", "list", "mission.close", "mission.create", "mission.list", "mission.show", "mission.update", "models",
+    "project.close", "project.open", "project.status", "reset", "resume", "schedule.create", "schedule.delete",
+    "schedule.history", "schedule.list", "schedule.pause", "schedule.resume", "schedule.run", "schedule.run-due",
+    "schedule.show", "status", "steer", "stop", "update", "watchdog.configure", "worktree.discard",
+  ]),
+  subagent_supervisor: new Set(["ask", "list", "pending", "reply", "send", "status"]),
+  todo: new Set(["clear", "create", "delete", "get", "list", "update"]),
+};
 
 export type CommandCategory =
   | "build"
@@ -41,11 +53,12 @@ export function sanitizeModel(value: unknown): string | undefined {
 }
 
 export function sanitizeToolName(value: unknown): string {
-  return typeof value === "string" && KNOWN_TOOLS.has(value.toLowerCase()) ? value.toLowerCase() : "tool";
+  if (typeof value !== "string" || !SAFE_TOOL_NAME.test(value) || isPrivate(value)) return "tool";
+  return value;
 }
 
 export function isInteractiveTool(value: unknown): boolean {
-  return INTERACTIVE_TOOLS.has(sanitizeToolName(value));
+  return INTERACTIVE_TOOLS.has(sanitizeToolName(value).toLowerCase());
 }
 
 export function sanitizeFileBasename(value: unknown): string | undefined {
@@ -75,15 +88,30 @@ function valueAt(input: unknown, names: string[]): unknown {
   return undefined;
 }
 
+function sanitizeAction(value: unknown): string | undefined {
+  return typeof value === "string" && SAFE_ACTION.test(value) && !isPrivate(value) ? value : undefined;
+}
+
 export function summarizeTool(value: unknown, input: unknown): ToolActivity {
   const toolName = sanitizeToolName(value);
-  const interactive = INTERACTIVE_TOOLS.has(toolName);
+  const capabilityToolName = toolName === toolName.toLowerCase() ? toolName : "";
+  const interactive = INTERACTIVE_TOOLS.has(capabilityToolName);
   if (interactive) return { toolName, interactive, summary: "Waiting for input" };
 
-  if (toolName === "bash" || toolName === "terminal") {
+  if (capabilityToolName === "bash" || capabilityToolName === "terminal") {
     return { toolName, interactive, summary: `Command: ${classifyCommand(valueAt(input, ["command", "cmd"]))}` };
   }
 
-  const file = sanitizeFileBasename(valueAt(input, ["path", "file", "filename"]));
-  return { toolName, interactive, summary: file ? `${toolName}: ${file}` : `Using ${toolName}` };
+  if (FILE_TOOLS.has(capabilityToolName)) {
+    const file = sanitizeFileBasename(valueAt(input, ["path", "file", "filename"]));
+    if (file) return { toolName, interactive, summary: `${toolName}: ${file}` };
+  }
+
+  const allowedActions = ACTIONS_BY_TOOL[capabilityToolName];
+  const action = allowedActions ? sanitizeAction(valueAt(input, ["action"])) : undefined;
+  return {
+    toolName,
+    interactive,
+    summary: action && allowedActions?.has(action) ? `${toolName}: ${action}` : `Using ${toolName}`,
+  };
 }
