@@ -11,7 +11,13 @@ import { AgentPetTransport, type AgentPetEvent } from "../src/transport.js";
 class FakePi {
   public readonly handlers = new Map<string, (...args: any[]) => void | Promise<void>>();
   public command?: { name: string; handler: (args: string, context: any) => Promise<void> };
+  public runtimeReady = false;
+  public sessionName: string | undefined = "Initial Pi session";
   public on(eventName: string, handler: (...args: any[]) => void | Promise<void>): void { this.handlers.set(eventName, handler); }
+  public getSessionName(): string | undefined {
+    if (!this.runtimeReady) throw new Error("Extension runtime not initialized");
+    return this.sessionName;
+  }
   public registerCommand(name: string, command: { handler: (args: string, context: any) => Promise<void> }): void {
     this.command = { name, handler: command.handler };
   }
@@ -42,7 +48,7 @@ test("extension uses Pi 0.84.3 fields and awaits idle delivery at shutdown", asy
     socket.on("data", (chunk) => { data += chunk.toString("utf8"); });
     socket.on("end", () => {
       for (const line of data.trim().split("\n")) if (line) events.push(JSON.parse(line) as AgentPetEvent);
-      if (events.length === 6) resolveEvents?.();
+      if (events.length === 8) resolveEvents?.();
     });
   });
   await listen(server, socketPath);
@@ -51,8 +57,11 @@ test("extension uses Pi 0.84.3 fields and awaits idle delivery at shutdown", asy
   const pi = new FakePi();
   const transport = new AgentPetTransport({ socketPath, queueDir: join(directory, "queue"), timeoutMs: 100, queueMaxEntries: 10 });
   installAgentPetExtension(pi as unknown as ExtensionAPI, { transport, diagnosticDelayMs: 0 });
+  pi.runtimeReady = true;
   const context = { cwd: "/work/demo", getContextUsage: () => ({ tokens: 99 }) };
   await pi.handlers.get("session_start")!({ type: "session_start", reason: "startup" }, context);
+  await pi.handlers.get("session_info_changed")!({ type: "session_info_changed", name: "password: hunter2" }, context);
+  await pi.handlers.get("session_info_changed")!({ type: "session_info_changed", name: "Rename AgentPet 会话" }, context);
   await pi.handlers.get("model_select")!({ type: "model_select", model: { id: "provider/model-1" }, previousModel: undefined, source: "set" }, context);
   await pi.handlers.get("message_update")!({
     type: "message_update",
@@ -71,7 +80,12 @@ test("extension uses Pi 0.84.3 fields and awaits idle delivery at shutdown", asy
   await pi.handlers.get("session_shutdown")!({ type: "session_shutdown", reason: "quit" }, context);
   await allEvents;
 
-  assert.deepEqual(events.map((event) => event.eventName), ["registered", "working", "working", "working", "done", "idle"]);
+  assert.deepEqual(events.map((event) => event.eventName), [
+    "registered", "registered", "registered", "working", "working", "working", "done", "idle",
+  ]);
+  assert.equal(events[0]?.project, "Initial Pi session");
+  assert.equal(events[1]?.project, "demo");
+  assert.equal(events[2]?.project, "Rename AgentPet 会话");
   assert.match(events.find((event) => event.eventName === "done")?.message || "", /42 tokens/);
   assert.doesNotMatch(JSON.stringify(events), /secret/);
   assert.equal(pi.handlers.has("agent_end"), false);

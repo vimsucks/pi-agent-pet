@@ -4,9 +4,12 @@ const SAFE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
 const SAFE_MODEL = /^[A-Za-z0-9][A-Za-z0-9._-]{0,59}(?:\/[A-Za-z0-9][A-Za-z0-9._-]{0,59})?$/;
 const SAFE_TOOL_NAME = /^[A-Za-z][A-Za-z0-9._:-]{0,99}$/;
 const SAFE_ACTION = /^[A-Za-z][A-Za-z0-9._:-]{0,39}$/;
+const SAFE_SESSION_NAME = /^[\p{L}\p{N}][\p{L}\p{N}\p{Zs}._():#+,'!?，。！？、（）-]{0,79}$/u;
 const PRIVATE_MARKER = /(?:api[-_]?key|auth|credential|password|secret|token)/i;
-const SECRET_VALUE = /(?:ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|glpat-[A-Za-z0-9_-]{20,}|hf_[A-Za-z0-9]{20,}|npm_[A-Za-z0-9]{20,}|xox[a-zA-Z]-[A-Za-z0-9-]{10,}|sk-[A-Za-z0-9_-]{8,}|AIza[A-Za-z0-9_-]{20,}|AKIA[A-Z0-9]{16}|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,})/i;
-const URL_LIKE = /(?:https?:\/\/|https?:\/(?!\/)|\/\/)/i;
+const PRIVATE_ASSIGNMENT = /(?:(?:credential|password|secret)\s*(?::|=|\s)\s*\S+|(?:api[-_ ]?key|token)\s*(?::|=|\s)\s*(?:(?=\S{6,})(?=\S*(?:\d|[_-]))\S+|\S{16,}))/i;
+const AUTHORIZATION_VALUE = /(?:\bauthorization\s*:\s*(?:bearer|basic)\s+\S+|\bbearer\s+[A-Za-z0-9._~+/-]{8,})/i;
+const SECRET_VALUE = /(?:gh[oprsu]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|glpat-[A-Za-z0-9_-]{20,}|hf_[A-Za-z0-9]{20,}|npm_[A-Za-z0-9]{20,}|xox[a-zA-Z]-[A-Za-z0-9-]{10,}|sk-[A-Za-z0-9_-]{8,}|AIza[A-Za-z0-9_-]{20,}|AKIA[A-Z0-9]{16}|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,})/i;
+const URL_LIKE = /(?:\b[A-Za-z][A-Za-z0-9+.-]{1,15}:\S+|\/\/|\bwww\.[^\s]+|\b(?:[A-Za-z0-9-]+\.)+(?:ai|app|cn|co|com|dev|io|net|org)\b)/i;
 const INTERACTIVE_TOOLS = new Set(["ask_user_question", "question", "interview"]);
 const FILE_TOOLS = new Set(["apply_patch", "edit", "find", "grep", "insert", "ls", "read", "replace", "write"]);
 const ACTIONS_BY_TOOL: Readonly<Record<string, ReadonlySet<string>>> = {
@@ -50,6 +53,19 @@ export function sanitizeProject(value: unknown): string | undefined {
 
 export function sanitizeModel(value: unknown): string | undefined {
   return typeof value === "string" && SAFE_MODEL.test(value) && !isPrivate(value) ? value : undefined;
+}
+
+export function sanitizeSessionName(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const name = value.trim();
+  if (!SAFE_SESSION_NAME.test(name)
+    || SECRET_VALUE.test(name)
+    || URL_LIKE.test(name)
+    || PRIVATE_ASSIGNMENT.test(name)
+    || AUTHORIZATION_VALUE.test(name)) {
+    return undefined;
+  }
+  return name;
 }
 
 export function sanitizeToolName(value: unknown): string {

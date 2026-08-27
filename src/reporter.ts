@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { basename } from "node:path";
-import { sanitizeModel, sanitizeProject, summarizeTool } from "./sanitize.js";
+import { sanitizeModel, sanitizeProject, sanitizeSessionName, summarizeTool } from "./sanitize.js";
 import type { AgentPetEvent, AgentPetEventName } from "./transport.js";
 
 export interface EventSink {
@@ -21,7 +21,7 @@ interface ActiveTool {
 
 export class AgentPetReporter {
   private readonly sessionId: string;
-  private readonly project?: string;
+  private project?: string;
   private readonly now: () => number;
   private readonly activeTools = new Map<string, ActiveTool>();
   private tail: Promise<void> = Promise.resolve();
@@ -29,10 +29,17 @@ export class AgentPetReporter {
   private model?: string;
   private errors = 0;
   private tokens = 0;
+  private lastActivity?: {
+    eventName: AgentPetEventName;
+    message: string;
+    toolName?: string;
+    toolSummary?: string;
+  };
 
   public constructor(private readonly sink: EventSink, options: ReporterOptions = {}) {
     this.sessionId = options.sessionId || randomUUID();
-    this.project = sanitizeProject(options.project || basename(process.cwd()));
+    const project = options.project || basename(process.cwd());
+    this.project = sanitizeSessionName(project) || sanitizeProject(project);
     this.now = options.now || (() => Math.floor(Date.now() / 1000));
   }
 
@@ -53,6 +60,19 @@ export class AgentPetReporter {
 
   public selectedModel(value: unknown): void {
     this.model = sanitizeModel(value);
+  }
+
+  public projectChanged(value: unknown): Promise<void> {
+    const project = sanitizeSessionName(value) || sanitizeProject(value);
+    if (project === this.project) return this.tail;
+    this.project = project;
+    if (!this.lastActivity) return this.tail;
+    return this.emit(
+      this.lastActivity.eventName,
+      this.lastActivity.message,
+      this.lastActivity.toolName,
+      this.lastActivity.toolSummary,
+    );
   }
 
   public updatedUsage(tokenCount: unknown): void {
@@ -96,6 +116,7 @@ export class AgentPetReporter {
   }
 
   private emit(eventName: AgentPetEventName, message: string, toolName?: string, toolSummary?: string, streaming = false): Promise<void> {
+    this.lastActivity = { eventName, message, toolName, toolSummary };
     const event: AgentPetEvent = {
       sessionId: this.sessionId,
       agentKind: "pi",

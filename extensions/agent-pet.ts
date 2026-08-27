@@ -1,7 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { loadConfig } from "../src/config.js";
 import { AgentPetReporter } from "../src/reporter.js";
-import { sanitizeProject } from "../src/sanitize.js";
+import { sanitizeProject, sanitizeSessionName } from "../src/sanitize.js";
 import { AgentPetTransport, type AgentPetEvent, type DeliveryResult } from "../src/transport.js";
 
 export interface AgentPetExtensionOptions {
@@ -9,8 +9,20 @@ export interface AgentPetExtensionOptions {
   diagnosticDelayMs?: number;
 }
 
-function createReporter(transport: AgentPetTransport, cwd: string): AgentPetReporter {
-  return new AgentPetReporter(transport, { project: sanitizeProject(cwd) });
+function projectLabel(cwd: string, sessionName: unknown): string | undefined {
+  return sanitizeSessionName(sessionName) || sanitizeProject(cwd);
+}
+
+function createReporter(transport: AgentPetTransport, cwd: string, sessionName: unknown): AgentPetReporter {
+  return new AgentPetReporter(transport, { project: projectLabel(cwd, sessionName) });
+}
+
+function currentSessionName(pi: ExtensionAPI): string | undefined {
+  try {
+    return pi.getSessionName();
+  } catch {
+    return undefined;
+  }
 }
 
 function fireAndForget(operation: () => Promise<void> | void): void {
@@ -49,11 +61,14 @@ export function installAgentPetExtension(pi: ExtensionAPI, options: AgentPetExte
     && requestedDiagnosticDelayMs >= 0) {
     diagnosticDelayMs = requestedDiagnosticDelayMs;
   }
-  let reporter = createReporter(transport, process.cwd());
+  let reporter = createReporter(transport, process.cwd(), undefined);
 
   pi.on("session_start", (_event, context) => {
-    reporter = createReporter(transport, context.cwd);
+    reporter = createReporter(transport, context.cwd, currentSessionName(pi));
     fireAndForget(() => reporter.registered());
+  });
+  pi.on("session_info_changed", (event, context) => {
+    fireAndForget(() => reporter.projectChanged(projectLabel(context.cwd, event.name)));
   });
   pi.on("agent_start", () => fireAndForget(() => reporter.agentStarted()));
   // agent_end deliberately has no handler: Pi can still retry or compact.

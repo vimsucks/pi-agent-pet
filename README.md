@@ -36,14 +36,16 @@ This extension is deliberately lossy. The event payload is restricted to the pro
 | `sessionId` | Random extension session UUID |
 | `agentKind` | Always `pi` |
 | `eventName` | `registered`, `working`, `waiting`, `done`, or `idle` |
-| `project` | Project basename only |
+| `project` | Sanitized Pi session name, falling back to the project basename |
 | `model` | Validated model id only |
 | `toolName` | Real tool identifier after strict format and secret-pattern validation |
 | `toolSummary` | Tool name, filename basename, safe action, or command category only |
 | `message` | Fixed safe activity text and integer token/error counts |
 | `timestamp` | Unix seconds |
 
-It never forwards prompts, assistant output, file contents, full paths, command text, command output, queries, URLs, secrets, transcript paths, or terminal focus URLs. Safe tool identifiers such as `subagent` and `web_search` remain visible, but arbitrary tool arguments never do. File basenames and actions are extracted only for known file and control tools; unknown tools cannot opt into argument extraction by imitating field names. Invalid identifiers and names matching secret patterns are reduced to `tool`; shell commands are reduced to one of `build`, `filesystem`, `package-manager`, `process`, `test`, `version-control`, or `shell`.
+The `project` label follows Pi's display name set by `--name`, `/name`, RPC, or another extension. Renaming is reflected immediately; clearing the name or using a value that fails the privacy filter restores the working-directory basename.
+
+It never forwards prompts, assistant output, file contents, full paths, command text, command output, queries, URLs, secrets, transcript paths, or terminal focus URLs. Session names are limited to 80 characters of ordinary letters, numbers, spaces, and safe punctuation, and are rejected when they contain URLs, credential signatures, control characters, or private value assignments. Safe tool identifiers such as `subagent` and `web_search` remain visible, but arbitrary tool arguments never do. File basenames and actions are extracted only for known file and control tools; unknown tools cannot opt into argument extraction by imitating field names. Invalid identifiers and names matching secret patterns are reduced to `tool`; shell commands are reduced to one of `build`, `filesystem`, `package-manager`, `process`, `test`, `version-control`, or `shell`.
 
 When direct delivery fails, the same LF-terminated JSON is written atomically to `~/.agentpet/queue/` with `0600` permissions. The queue is capped to avoid unbounded disk usage, uses a current-user-owned non-symlink `0700` directory, and is never reported as queued when that write fails. Reporting errors, socket timeouts, queue errors, and all Pi hooks are fail-open.
 

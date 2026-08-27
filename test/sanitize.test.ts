@@ -5,6 +5,7 @@ import {
   sanitizeFileBasename,
   sanitizeModel,
   sanitizeProject,
+  sanitizeSessionName,
   sanitizeToolName,
   summarizeTool,
 } from "../src/sanitize.js";
@@ -15,6 +16,10 @@ test("sanitizers retain only approved metadata", () => {
   assert.equal(sanitizeModel("anthropic/claude-3-7-sonnet"), "anthropic/claude-3-7-sonnet");
   assert.equal(classifyCommand("git status --short"), "version-control");
   assert.equal(classifyCommand("npm test -- --secret=hidden"), "test");
+  assert.equal(sanitizeSessionName("  Refactor auth module  "), "Refactor auth module");
+  assert.equal(sanitizeSessionName("修复 AgentPet 会话名称"), "修复 AgentPet 会话名称");
+  assert.equal(sanitizeSessionName("token: parser"), "token: parser");
+  assert.equal(sanitizeSessionName("AgentPet's label, done!"), "AgentPet's label, done!");
   assert.deepEqual(summarizeTool("bash", { command: "curl https://example.test/?token=secret" }), {
     toolName: "bash",
     interactive: false,
@@ -95,6 +100,16 @@ test("sanitizers reject common credential formats and malformed model identifier
   assert.equal(sanitizeToolName("https://host.test/tool"), "tool");
   assert.equal(sanitizeToolName("password"), "tool");
   assert.equal(sanitizeToolName("sk-abcdefgh12345678"), "tool");
+  assert.equal(sanitizeSessionName("password: hunter2"), undefined);
+  assert.equal(sanitizeSessionName("password hunter2"), undefined);
+  assert.equal(sanitizeSessionName("Authorization: Bearer opaquevalue"), undefined);
+  assert.equal(sanitizeSessionName("https:example.com"), undefined);
+  assert.equal(sanitizeSessionName("Review www.example.com"), undefined);
+  assert.equal(sanitizeSessionName("Review example.com"), undefined);
+  assert.equal(sanitizeSessionName("gho_abcdefghijklmnopqrstuvwxyz1234567890"), undefined);
+  assert.equal(sanitizeSessionName("Open https://host.test/private"), undefined);
+  assert.equal(sanitizeSessionName("backup_ghp_abcdefghijklmnopqrstuvwxyz1234567890"), undefined);
+  assert.equal(sanitizeSessionName("line\nbreak"), undefined);
 });
 
 test("interactive tools become waiting without retaining the question", () => {
