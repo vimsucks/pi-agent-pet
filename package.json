@@ -1,0 +1,26 @@
+{
+  "name": "@vimsucks/pi-agent-pet",
+  "version": "1.0.0",
+  "description": "Privacy-aware AgentPet activity reporter for Pi",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vimsucks/pi-agent-pet.git"
+  },
+  "homepage": "https://github.com/vimsucks/pi-agent-pet#readme",
+  "bugs": "https://github.com/vimsucks/pi-agent-pet/issues",
+  "keywords": ["pi-package", "agentpet", "pi", "extension"],
+  "pi": { "extensions": ["extensions/agent-pet.ts"] },
+  "files": ["extensions", "src", "README.md", "LICENSE"],
+  "scripts": {
+    "test": "tsx --test test/**/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": { "@earendil-works/pi-coding-agent": "*" },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  },
+  "engines": { "node": ">=20" },
+  "license": "MIT"
+}
