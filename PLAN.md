@@ -44,8 +44,8 @@ Build a production-ready Pi package that reports rich, privacy-aware Pi activity
 
 ## Validation
 
-1. `npm test`
-2. `npm run typecheck`
+1. `pnpm test`
+2. `pnpm run typecheck`
 3. Install the local package into Pi and run `/reload`.
 4. Run `/agent-pet status` and `/agent-pet test` against the local AgentPet socket.
 5. Verify Huhu reacts to registered, working, waiting, done, and idle states.

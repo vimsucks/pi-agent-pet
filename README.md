@@ -5,6 +5,12 @@ A dependency-free Pi extension that reports privacy-filtered activity to AgentPe
 ## Install
 
 ```sh
+pi install npm:@vimsucks/pi-agent-pet
+```
+
+Alternatively, install from GitHub:
+
+```sh
 pi install git:github.com/vimsucks/pi-agent-pet
 ```
 
@@ -16,14 +22,16 @@ AgentPet may already have its built-in Pi integration enabled or have installed 
 
 ```sh
 rm -f ~/.pi/agent/extensions/agentpet.ts
-pi install git:github.com/vimsucks/pi-agent-pet
+pi install npm:@vimsucks/pi-agent-pet
 ```
 
 To uninstall this package, disconnect the built-in Pi integration in AgentPet Settings first, then remove the package source and reload Pi:
 
 ```sh
-pi remove git:github.com/vimsucks/pi-agent-pet
+pi remove npm:@vimsucks/pi-agent-pet
 ```
+
+If you installed from GitHub, remove `git:github.com/vimsucks/pi-agent-pet` instead.
 
 Do not restore the old standalone extension unless it is the reporter you intend to use.
 
@@ -97,11 +105,21 @@ Child sessions launched by `pi-subagents` set `PI_SUBAGENT_CHILD=1`. The extensi
 ## Development
 
 ```sh
-npm install
-npm test
-npm run typecheck
+pnpm install --frozen-lockfile --ignore-scripts
+pnpm test
+pnpm typecheck
 ```
 
 The package has no runtime third-party dependencies. Tests use the Node test runner through `tsx` and cover sanitization leaks, state aggregation, socket JSONL delivery, offline queue permissions/capacity, and extension registration.
 
-The package declares Pi as a peer because Pi provides its extension API at runtime. The repository-level `.npmrc` prevents npm from downloading a second private copy of Pi when this Git package is installed.
+Pi supplies its extension API at runtime, so the package declares Pi as a peer dependency rather than bundling it. The repository pins pnpm and commits `pnpm-lock.yaml` for reproducible development installs. `.npmrc` and `publishConfig` use the public npm registry; do not add credentials to either file.
+
+## Publishing
+
+After the tests and type check pass, publish from a clean working tree on `main`:
+
+```sh
+pnpm publish
+```
+
+The package is configured for public access on `https://registry.npmjs.org/`. If npm requests additional authentication, complete it in an interactive terminal. Verify the published version with `npm view @vimsucks/pi-agent-pet version --registry=https://registry.npmjs.org/`.
